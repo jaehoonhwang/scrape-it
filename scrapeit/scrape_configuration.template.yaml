@@ -1,0 +1,25 @@
+scrape_it:
+  version: 0.1
+  general:
+    max_images_per_run: <max_image_per_run>
+    max_images: <max_images>
+
+  authentication:
+    reddit: <reddit_secret_location>
+
+  locations:
+    storage_location: <storage_location>
+    configuration_location: <configuration_location>
+
+  interval:
+    hour: <hour>
+    day: <day>
+
+  filter:
+    resolution:
+      resolution_min: <resolution_min>
+      resolution_max: <resolution_max>
+
+  website-specific:
+    reddit:
+      subreddits: [ <subreddits> ]

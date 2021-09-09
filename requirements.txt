@@ -1,0 +1,4 @@
+# CONFIGURATIOn
+pyyaml
+# REDDIT API
+praw
