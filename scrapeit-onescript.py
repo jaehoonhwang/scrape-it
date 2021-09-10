@@ -118,7 +118,6 @@ def main() -> None:
     change_background_mac(background_image_path)
     # pickle.dump(CHECKER, open(CHECKER_LOCATION, "wb"))
 
-
 def initialization():
     machine = platform.machine
     directories = [SECRET_LOCATION, IMAGE_LOCATION, CHECKER_LOCATION]
