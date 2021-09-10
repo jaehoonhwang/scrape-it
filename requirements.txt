@@ -2,3 +2,8 @@
 pyyaml
 # REDDIT API
 praw
+# REQUEST
+requests
+
+# MAC APPSCRIPT
+appscript
