@@ -4,6 +4,8 @@ pyyaml
 praw
 # REQUEST
 requests
+# IMAGE
+Pillow
 
 # MAC APPSCRIPT
 appscript

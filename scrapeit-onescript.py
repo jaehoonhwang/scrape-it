@@ -2,6 +2,7 @@ try:
     from appscript import app, mactypes
 except ImportError:
     print("no exception, likely this is being run on Windows")
+from PIL import ImageFile
 from praw import Reddit
 from collections import deque
 
@@ -12,6 +13,7 @@ import platform
 import requests
 import subprocess
 import time
+import urllib.request
 import yaml
 
 SECRET_LOCATION = os.path.join(
@@ -25,6 +27,8 @@ SUBREDDITS = ["CityPorn"]
 FILENAME_SPEARATOR = "_"
 IMAGE_FORMATS = ("image/png", "image/jpeg", "image/jpg")
 IMAGE_FORMATS_EXT = (".png", ".jpeg", ".jpg")
+IMAGE_RESOLUTION_MIN = (1680, 1050)
+IMAGE_RESOLUTION_MAX = (float('inf'), float('inf'))
 
 MAX_SEARCH = 20
 MAX_IMAGE_PER_RUN = 5
@@ -41,7 +45,7 @@ tell application "System Events"
         tell desktop desktopNumber
             set pictures folder to "%s"
             set picture rotation to 2 -- using interval
-            set change interval to 1800
+            set change interval to 300
             set random order to true
         end tell
     end repeat
@@ -73,6 +77,23 @@ def is_url_image(url: str) -> bool:
     r = requests.head(url)
     return r.headers["content-type"] in IMAGE_FORMATS
 
+
+def get_image_resolution(url : str):
+    # https://tinyurl.com/2ez7uz65
+    # get file size *and* image size (None if not known)
+    file = urllib.request.urlopen(url)
+    size = file.headers.get("content-length")
+    if size: size = int(size)
+    p = ImageFile.Parser()
+    while True:
+        data = file.read(1024)
+        if not data:
+            break
+        p.feed(data)
+        if p.image:
+            return size, p.image.size
+    file.close()
+    return size, (-1, -1)
 
 def generate_id(title: str) -> str:
     title = "".join([ch for ch in title if ch.isalpha()])
@@ -111,7 +132,7 @@ def maintain_directory():
 
     files = sorted(files)
 
-    for delete_file in files[:file_numbers-MAX_IMAGE]:
+    for delete_file in files[:MAX_IMAGE]:
         print("File: {} will be deleted".format(delete_file))
         os.remove(delete_file)
 
@@ -142,13 +163,20 @@ def main() -> None:
             print("Submission id: {} url: {} permalink: {}".format(
                 id, url, permalink))
             if permalink == url:
+                print("ignoring self-made post")
                 continue
             if not is_url_image(url):
+                print("ignoring non image link")
                 continue
-            background_image_path = generate_id(title)
-            download_image(url, background_image_path)
-            CHECKER.append(id)
-            count += 1
+            _, image_resolution = get_image_resolution(url)
+            if IMAGE_RESOLUTION_MIN[0] <= image_resolution[0] <= IMAGE_RESOLUTION_MAX[0] and \
+                IMAGE_RESOLUTION_MIN[1] <= image_resolution[1] <= IMAGE_RESOLUTION_MAX[1]:
+                background_image_path = generate_id(title)
+                download_image(url, background_image_path)
+                CHECKER.append(id)
+                count += 1
+            else:
+                print("image has {}x{} resolution; does not meet resolution requirement".format(image_resolution[0], image_resolution[1]))
 
     change_background_mac()
 
