@@ -10,6 +10,7 @@ import os
 import pickle
 import platform
 import requests
+import subprocess
 import time
 import yaml
 
@@ -21,18 +22,35 @@ CHECKER_LOCATION = os.path.join(
 
 
 SUBREDDITS = ["CityPorn"]
+FILENAME_SPEARATOR = "_"
 IMAGE_FORMATS = ("image/png", "image/jpeg", "image/jpg")
+IMAGE_FORMATS_EXT = (".png", ".jpeg", ".jpg")
 
 MAX_SEARCH = 20
-MAX_IMAGE_PER_RUN = 1
+MAX_IMAGE_PER_RUN = 5
 MAX_IMAGE = 10
 MAX_HISTORY = 500
 
 CHECKER = pickle.load(open(CHECKER_LOCATION, "rb")) if os.path.isfile(
     CHECKER_LOCATION) else deque([], maxlen=MAX_HISTORY)
 
-def create_directory(machine, path):
+APPLE_SCRIPT = """/usr/bin/osascript<<END
+tell application "System Events"
+    set desktopCount to count of desktops
+    repeat with desktopNumber from 1 to desktopCount
+        tell desktop desktopNumber
+            set pictures folder to "%s"
+            set picture rotation to 2 -- using interval
+            set change interval to 1800
+            set random order to true
+        end tell
+    end repeat
+end tell
+END"""
+
+def create_directory(path, **kwargs):
     if not os.path.exists(path):
+        print("Path {} does not exist; attempting to create one".format(path))
         # create a directory
         os.makedirs(path)
 
@@ -57,7 +75,9 @@ def is_url_image(url: str) -> bool:
 
 
 def generate_id(title: str) -> str:
-    file_name = "_".join([title, str(int(time.time()))]) + ".jpg"
+    title = "".join([ch for ch in title if ch.isalpha()])
+    title = "_".join(title.split("\s+"))
+    file_name = FILENAME_SPEARATOR.join([str(int(time.time())), title]) + ".jpg"
     full_path = os.path.join(IMAGE_LOCATION, file_name)
     return full_path
 
@@ -68,11 +88,9 @@ def download_image(url: str, full_path: str) -> None:
         handler.write(image_data)
 
 
-def change_background_mac(file_path: str) -> None:
-    if not file_path:
-        print("file path is emtpy; not changing background")
-        return
-    app("Finder").desktop_picture.set(mactypes.File(file_path))
+def change_background_mac() -> None:
+    script = APPLE_SCRIPT%IMAGE_LOCATION
+    subprocess.Popen(script, shell=True)
 
 
 def change_background_windows(file_path: str) -> None:
@@ -81,9 +99,25 @@ def change_background_windows(file_path: str) -> None:
         return
     ctypes.windll.user32.SystemParametersinfoWindows(20, 0, file_path, 0)
 
+def maintain_directory():
+    files = [os.path.join(IMAGE_LOCATION, file)for file in os.listdir(IMAGE_LOCATION) 
+             if os.path.isfile(os.path.join(IMAGE_LOCATION, file)) and
+             any([ext in file for ext in IMAGE_FORMATS_EXT])]
+    file_numbers = len(files)
+
+    if file_numbers <= MAX_IMAGE:
+        print("maintain_directory:: no Action needed since {} path contains {} files".format(IMAGE_LOCATION, file_numbers))
+        return
+
+    files = sorted(files)
+
+    for delete_file in files[:file_numbers-MAX_IMAGE]:
+        print("File: {} will be deleted".format(delete_file))
+        os.remove(delete_file)
 
 def main() -> None:
-    initialization()
+    system = platform.system()
+    initialization(system=system)
 
     secret = read_yaml_file(SECRET_LOCATION)
     print("Secret: {}".format(secret))
@@ -92,18 +126,19 @@ def main() -> None:
                     user_agent=secret["user_agent"])
 
     count = 0
-    backgrond_image_path = ""
     for subreddit in SUBREDDITS:
         if count >= MAX_IMAGE_PER_RUN:
             break
         for submission in reddit.subreddit(subreddit).hot(limit=MAX_SEARCH):
             if count >= MAX_IMAGE_PER_RUN:
                 break
-            # if id in CHECKER: continue
             id = submission.id
+            title = submission.title
+            if id in CHECKER: 
+                print("Skipping id: {} and title: {}".format(id, title))
+                continue
             url = submission.url
             permalink = submission.permalink
-            title = submission.title
             print("Submission id: {} url: {} permalink: {}".format(
                 id, url, permalink))
             if permalink == url:
@@ -112,18 +147,20 @@ def main() -> None:
                 continue
             background_image_path = generate_id(title)
             download_image(url, background_image_path)
-            # CHECKER.append(id)
+            CHECKER.append(id)
             count += 1
 
-    change_background_mac(background_image_path)
-    # pickle.dump(CHECKER, open(CHECKER_LOCATION, "wb"))
+    change_background_mac()
 
-def initialization():
-    machine = platform.machine
+    # CLEANUP
+    pickle.dump(CHECKER, open(CHECKER_LOCATION, "wb"))
+    maintain_directory()
+
+def initialization(*args, **kwargs):
     directories = [SECRET_LOCATION, IMAGE_LOCATION, CHECKER_LOCATION]
     directories = [os.path.dirname(directory) for directory in directories]
     for directory in directories:
-        create_directory(machine, directory)
+        create_directory(directory, **kwargs)
 
 
 if __name__ == "__main__":
