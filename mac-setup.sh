@@ -15,7 +15,7 @@ $BOOTSTRAP_FILE
 
 echo "Creating Virutalenv for scrapeit"
 
-DIRECTORY=$HOME/.config/scrapeit/bin/
+DIRECTORY=$HOME/.config/scrapeit/env/scrape-it
 if [ -d "$DIRECTORY" ]; then
     echo "$DIRECTORY exists."
 else 
@@ -27,10 +27,16 @@ echo "Installing Dependencies"
 
 $PYTHON_VENV_TARGET/bin/pip install -r $SCRIPT_DIR/requirements.txt
 
+echo "Creating crontab file for periodic running of the script."
+
+CRON_JOB="0 0 */3 * * $SCRIPT_DIR/mac-start.sh"
+
 crontab -l > crontab_new || echo "" > crontab_new
 
-echo "0 0 */3 * * $SCRIPT_DIR/mac-start.sh" >> crontab_new
+echo "$CRON_JOB" >> crontab_new
 
 crontab crontab_new
 
 rm crontab_new
+
+(crontab -l; echo "$CRON_JOB")|awk '!x[$0]++'|crontab -
