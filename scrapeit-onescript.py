@@ -1,7 +1,3 @@
-try:
-    from appscript import app, mactypes
-except ImportError:
-    print("no exception, likely this is being run on Windows")
 from PIL import ImageFile
 from praw import Reddit
 from collections import deque
@@ -23,7 +19,7 @@ CHECKER_LOCATION = os.path.join(
     os.path.expanduser("~"), ".config/scrapeit/checker.p")
 
 
-SUBREDDITS = ["CityPorn"]
+SUBREDDITS = ["CityPorn", "natureporn"]
 FILENAME_SPEARATOR = "_"
 IMAGE_FORMATS = ("image/png", "image/jpeg", "image/jpg")
 IMAGE_FORMATS_EXT = (".png", ".jpeg", ".jpg")
@@ -31,8 +27,8 @@ IMAGE_RESOLUTION_MIN = (1680, 1050)
 IMAGE_RESOLUTION_MAX = (float('inf'), float('inf'))
 
 MAX_SEARCH = 20
-MAX_IMAGE_PER_RUN = 5
-MAX_IMAGE = 10
+MAX_IMAGE_PER_SUBREDDIT = 2
+MAX_IMAGE = 20
 MAX_HISTORY = 500
 
 CHECKER = pickle.load(open(CHECKER_LOCATION, "rb")) if os.path.isfile(
@@ -75,6 +71,7 @@ def read_yaml_file(file_path: str) -> dict[str, str]:
 
 def is_url_image(url: str) -> bool:
     r = requests.head(url)
+    if "content_type" not in r.headers: return False
     return r.headers["content-type"] in IMAGE_FORMATS
 
 
@@ -146,12 +143,10 @@ def main() -> None:
                     client_secret=secret["client_secret"],
                     user_agent=secret["user_agent"])
 
-    count = 0
     for subreddit in SUBREDDITS:
-        if count >= MAX_IMAGE_PER_RUN:
-            break
+        count = 0
         for submission in reddit.subreddit(subreddit).hot(limit=MAX_SEARCH):
-            if count >= MAX_IMAGE_PER_RUN:
+            if count >= MAX_IMAGE_PER_SUBREDDIT:
                 break
             id = submission.id
             title = submission.title
